@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FireSim Pro v2 — A* Pathfinding</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --ink:#0d0f14;
+  --ink2:#1a1d26;
+  --ink3:#232736;
+  --line:#2e3347;
+  --line2:#3d4460;
+  --fire:#ff4520;
+  --fire2:#ff7c50;
+  --path:#3d8bff;
+  --path2:#7ab4ff;
+  --wall:#4a5270;
+  --wall2:#6b7599;
+  --green:#00d68f;
+  --yellow:#ffb800;
+  --text:#c8d0e8;
+  --text2:#7a86a8;
+  --text3:#3d4460;
+  --mono:'JetBrains Mono',monospace;
+  --display:'Syne',sans-serif;
+}
+
+body{background:var(--ink);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+
+/* ── HEADER ── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 24px;border-bottom:1px solid var(--line);
+  background:var(--ink2);position:sticky;top:0;z-index:50;
+}
+.logo{display:flex;align-items:center;gap:14px}
+.logo-mark{
+  width:40px;height:40px;background:var(--fire);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  box-shadow:0 0 20px rgba(255,69,32,.4);
+}
+.logo-text{font-family:var(--display);font-size:20px;font-weight:800;letter-spacing:.05em}
+.logo-version{font-size:10px;color:var(--path2);letter-spacing:.2em;margin-top:1px}
+.header-mid{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2)}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,214,143,.4)}50%{opacity:.5;box-shadow:0 0 0 4px rgba(0,214,143,0)}}
+.clock{font-size:13px;color:var(--path2);letter-spacing:.1em}
+
+/* ── LAYOUT ── */
+.app{display:grid;grid-template-columns:260px 1fr 220px;height:calc(100vh - 65px)}
+
+/* ── PANELS ── */
+.panel{
+  background:var(--ink2);border-right:1px solid var(--line);
+  padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;
+}
+.panel.right{border-right:none;border-left:1px solid var(--line)}
+
+.section-title{
+  font-size:9px;color:var(--text3);letter-spacing:.25em;text-transform:uppercase;
+  padding-bottom:8px;border-bottom:1px solid var(--line);
+}
+
+/* ── SLIDERS ── */
+.cfg-row{margin-bottom:12px}
+.cfg-row label{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:5px}
+.cfg-row label span{color:var(--path2);font-weight:500}
+input[type=range]{
+  width:100%;-webkit-appearance:none;height:3px;background:var(--line2);
+  border-radius:2px;outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:12px;border-radius:50%;
+  background:var(--path);cursor:pointer;transition:transform .15s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.4)}
+
+/* ── PRESETS ── */
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.preset{
+  padding:9px 6px;border:1px solid var(--line2);border-radius:6px;
+  background:var(--ink3);color:var(--text2);cursor:pointer;
+  font-size:11px;text-align:center;transition:all .15s;font-family:var(--mono);
+}
+.preset:hover{border-color:var(--fire);color:var(--text)}
+.preset-ico{font-size:16px;display:block;margin-bottom:3px}
+
+/* ── SPEED ── */
+.speeds{display:flex;gap:4px}
+.spd{
+  flex:1;padding:6px 0;border:1px solid var(--line2);border-radius:4px;
+  background:var(--ink3);color:var(--text2);cursor:pointer;
+  font-size:11px;text-align:center;transition:all .15s;font-family:var(--mono);
+}
+.spd:hover{color:var(--text)}
+.spd.on{background:var(--path);color:#fff;border-color:var(--path)}
+
+/* ── BUTTONS ── */
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  width:100%;padding:10px;border:none;border-radius:6px;
+  font-family:var(--display);font-size:13px;font-weight:700;
+  letter-spacing:.08em;cursor:pointer;transition:all .15s;
+}
+.btn-fire{background:var(--fire);color:#fff}
+.btn-fire:hover{background:var(--fire2);transform:translateY(-1px);box-shadow:0 4px 16px rgba(255,69,32,.3)}
+.btn-ghost{background:var(--ink3);color:var(--text2);border:1px solid var(--line2)}
+.btn-ghost:hover{color:var(--text);border-color:var(--path2)}
+.btn-green{background:var(--green);color:var(--ink)}
+.btn-green:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.3;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.btns{display:flex;flex-direction:column;gap:7px;margin-top:auto}
+
+/* ── LEGEND ── */
+.legend{display:flex;flex-direction:column;gap:6px}
+.leg-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text2)}
+.leg-box{width:16px;height:16px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px}
+
+/* ── MAIN CANVAS ZONE ── */
+.main{display:flex;flex-direction:column;background:var(--ink);overflow:hidden}
+.toolbar{
+  display:flex;align-items:center;gap:14px;padding:9px 16px;
+  border-bottom:1px solid var(--line);background:var(--ink2);
+}
+.toolbar-tag{font-size:9px;color:var(--text3);letter-spacing:.2em;text-transform:uppercase}
+.toolbar-info{font-size:11px;color:var(--text2)}
+.toolbar-coord{font-size:11px;color:var(--path2);margin-left:auto}
+
+.canvas-wrap{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:16px;position:relative;overflow:hidden;
+}
+/* CRT scanlines */
+.canvas-wrap::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:5;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+}
+
+#cv{display:block;border:1px solid var(--line2);border-radius:4px;cursor:crosshair}
+
+.alert{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:var(--fire);color:#fff;font-family:var(--display);font-weight:700;
+  font-size:12px;letter-spacing:.1em;padding:7px 18px;border-radius:5px;
+  z-index:20;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;
+  box-shadow:0 4px 20px rgba(255,69,32,.5);
+}
+.alert.show{opacity:1}
+
+.result{
+  position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;
+  background:rgba(13,15,20,.9);z-index:10;
+}
+.result.show{display:flex}
+.result-title{font-family:var(--display);font-size:56px;font-weight:800;letter-spacing:.04em}
+.result-sub{font-size:12px;color:var(--text2);text-align:center;line-height:1.6}
+
+/* ── RIGHT PANEL ── */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.stat{background:var(--ink3);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
+.stat.full{grid-column:span 2}
+.stat-val{font-family:var(--display);font-size:26px;font-weight:800;line-height:1}
+.stat-lbl{font-size:9px;color:var(--text3);letter-spacing:.1em;margin-top:3px}
+
+.pbar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:5px}
+.pfill{height:100%;border-radius:2px;transition:width .4s ease,background .4s}
+
+/* Sectors */
+.sectors{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.sec{
+  aspect-ratio:1;background:var(--ink3);border:1px solid var(--line);
+  border-radius:4px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;font-size:10px;color:var(--text3);transition:all .3s;
+}
+.sec.fire{background:rgba(255,69,32,.12);border-color:var(--fire);color:var(--fire)}
+.sec.pump{background:rgba(61,139,255,.1);border-color:var(--path);color:var(--path2)}
+.sec-lbl{font-size:8px;margin-top:1px}
+
+/* A* viz panel */
+.astar-info{
+  background:var(--ink3);border:1px solid var(--line);border-radius:7px;
+  padding:10px;font-size:11px;color:var(--text2);line-height:1.7;
+}
+.astar-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--line)}
+.astar-row:last-child{border:none}
+.astar-val{color:var(--path2);font-weight:500}
+
+/* Log */
+.logbox{
+  background:var(--ink3);border:1px solid var(--line);border-radius:7px;
+  padding:9px;max-height:180px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:3px;
+}
+.log{font-size:10px;color:var(--text2);padding:2px 6px;border-radius:2px;border-left:2px solid transparent;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:none}}
+.log.fire{border-color:var(--fire);color:var(--fire2)}
+.log.ext{border-color:var(--green);color:var(--green)}
+.log.path{border-color:var(--path);color:var(--path2)}
+.log.warn{border-color:var(--yellow);color:var(--yellow)}
+.log.sys{border-color:var(--text3);color:var(--text3)}
+
+/* Modal */
+.modal-wrap{
+  position:fixed;inset:0;background:rgba(0,0,0,.8);
+  display:flex;align-items:center;justify-content:center;
+  z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.modal-wrap.show{opacity:1;pointer-events:all}
+.modal{
+  background:var(--ink2);border:1px solid var(--line2);border-radius:12px;
+  padding:26px;width:400px;max-width:92vw;
+  transform:translateY(16px);transition:transform .2s;
+}
+.modal-wrap.show .modal{transform:none}
+.modal-title{font-family:var(--display);font-size:20px;font-weight:800;margin-bottom:16px}
+.rep-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;color:var(--text2)}
+.rep-row:last-child{border:none}
+.rep-val{color:var(--path2);font-family:var(--mono)}
+.modal-btns{display:flex;gap:8px;margin-top:16px}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--ink2)}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">🔥</div>
+    <div>
+      <div class="logo-text">FIRESIM PRO</div>
+      <div class="logo-version">v2.0 — ALGORITHME A*</div>
+    </div>
+  </div>
+  <div class="header-mid"><div class="pulse"></div><span id="sys-status">SYSTÈME OPÉRATIONNEL</span></div>
+  <div class="clock" id="clock">00:00:00</div>
+</header>
+
+<div class="app">
+
+<!-- ═══ PANEL GAUCHE ═══ -->
+<div class="panel">
+
+  <div>
+    <div class="section-title">Paramètres</div>
+    <div style="height:10px"></div>
+    <div class="cfg-row">
+      <label>Pompiers <span id="l-p">2</span></label>
+      <input type="range" id="c-p" min="1" max="5" value="2" oninput="document.getElementById('l-p').textContent=this.value">
+    </div>
+    <div class="cfg-row">
+      <label>Foyers initiaux <span id="l-f">5</span></label>
+      <input type="range" id="c-f" min="1" max="18" value="5" oninput="document.getElementById('l-f').textContent=this.value">
+    </div>
+    <div class="cfg-row">
+      <label>Eau / pompier <span id="l-w">12</span></label>
+      <input type="range" id="c-w" min="4" max="30" value="12" oninput="document.getElementById('l-w').textContent=this.value">
+    </div>
+    <div class="cfg-row">
+      <label>Taille grille <span id="l-g">12×12</span></label>
+      <input type="range" id="c-g" min="8" max="20" value="12" oninput="document.getElementById('l-g').textContent=this.value+'×'+this.value">
+    </div>
+    <div class="cfg-row">
+      <label>Murs / obstacles <span id="l-m">12%</span></label>
+      <input type="range" id="c-m" min="0" max="30" value="12" oninput="document.getElementById('l-m').textContent=this.value+'%'">
+    </div>
+    <div class="cfg-row">
+      <label>Propagation feux <span id="l-s">20%</span></label>
+      <input type="range" id="c-s" min="0" max="55" value="20" oninput="document.getElementById('l-s').textContent=this.value+'%'">
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Scénarios</div>
+    <div style="height:8px"></div>
+    <div class="preset-grid">
+      <button class="preset" onclick="loadPreset('urban')"><span class="preset-ico">🏙️</span>Urbain</button>
+      <button class="preset" onclick="loadPreset('forest')"><span class="preset-ico">🌲</span>Forêt</button>
+      <button class="preset" onclick="loadPreset('industrial')"><span class="preset-ico">🏭</span>Industriel</button>
+      <button class="preset" onclick="loadPreset('crisis')"><span class="preset-ico">🚨</span>Crise</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Vitesse</div>
+    <div style="height:7px"></div>
+    <div class="speeds">
+      <div class="spd" onclick="setSpeed(.5,this)">×½</div>
+      <div class="spd on" onclick="setSpeed(1,this)">×1</div>
+      <div class="spd" onclick="setSpeed(2,this)">×2</div>
+      <div class="spd" onclick="setSpeed(5,this)">×5</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Légende</div>
+    <div style="height:8px"></div>
+    <div class="legend">
+      <div class="leg-row"><div class="leg-box">🚒</div>Pompier (agent A*)</div>
+      <div class="leg-row"><div class="leg-box">🔥</div>Feu actif</div>
+      <div class="leg-row"><div class="leg-box">💥</div>Feu intense (x2+)</div>
+      <div class="leg-row"><div class="leg-box" style="background:var(--wall);color:var(--wall2)">█</div>Mur / obstacle</div>
+      <div class="leg-row"><div class="leg-box" style="background:rgba(61,139,255,.15);color:var(--path2)">·</div>Chemin A* calculé</div>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button class="btn btn-fire" id="b-start" onclick="startSim()">▶ DÉMARRER</button>
+    <button class="btn btn-ghost" id="b-pause" onclick="togglePause()" disabled>⏸ PAUSE</button>
+    <button class="btn btn-ghost" onclick="resetSim()">↺ RÉINITIALISER</button>
+    <button class="btn btn-ghost" onclick="showReport()">📋 RAPPORT</button>
+  </div>
+
+</div>
+
+<!-- ═══ CANVAS ═══ -->
+<div class="main">
+  <div class="toolbar">
+    <span class="toolbar-tag">GRILLE TACTIQUE A*</span>
+    <span class="toolbar-info" id="tour-lbl">TOUR — / —</span>
+    <span class="toolbar-coord" id="coord-lbl">X:— Y:—</span>
+  </div>
+  <div class="canvas-wrap">
+    <div class="alert" id="alert"></div>
+    <canvas id="cv"></canvas>
+    <div class="result" id="result">
+      <div class="result-title" id="result-title">—</div>
+      <div class="result-sub" id="result-sub">—</div>
+      <button class="btn btn-fire" style="width:220px;margin-top:8px" onclick="resetSim()">↺ RECOMMENCER</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PANEL DROIT ═══ -->
+<div class="panel right">
+
+  <div>
+    <div class="section-title">Statistiques</div>
+    <div style="height:8px"></div>
+    <div class="stats-grid">
+      <div class="stat"><div class="stat-val" id="s-fires" style="color:var(--fire)">—</div><div class="stat-lbl">FOYERS</div></div>
+      <div class="stat"><div class="stat-val" id="s-ext" style="color:var(--green)">—</div><div class="stat-lbl">ÉTEINTS</div></div>
+      <div class="stat"><div class="stat-val" id="s-pumps" style="color:var(--path2)">—</div><div class="stat-lbl">POMPIERS</div></div>
+      <div class="stat"><div class="stat-val" id="s-tour" style="color:var(--text2)">—</div><div class="stat-lbl">TOUR</div></div>
+      <div class="stat full">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="stat-lbl">EAU TOTALE</div>
+          <div class="stat-val" id="s-water" style="font-size:18px;color:var(--path2)">—</div>
+        </div>
+        <div class="pbar"><div class="pfill" id="pb-water" style="background:var(--path);width:0%"></div></div>
+      </div>
+      <div class="stat full">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="stat-lbl">EXTINCTION</div>
+          <div id="pb-pct" style="font-size:10px;color:var(--green)">0%</div>
+        </div>
+        <div class="pbar"><div class="pfill" id="pb-ext" style="background:var(--green);width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Métriques A*</div>
+    <div style="height:8px"></div>
+    <div class="astar-info" id="astar-info">
+      <div class="astar-row"><span>Cases explorées</span><span class="astar-val" id="a-explored">—</span></div>
+      <div class="astar-row"><span>Longueur chemin moy.</span><span class="astar-val" id="a-pathlen">—</span></div>
+      <div class="astar-row"><span>Recalculs totaux</span><span class="astar-val" id="a-recalc">—</span></div>
+      <div class="astar-row"><span>Dist. parcourue totale</span><span class="astar-val" id="a-dist">—</span></div>
+      <div class="astar-row"><span>Murs / obstacles</span><span class="astar-val" id="a-walls">—</span></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Carte sectorielle</div>
+    <div style="height:7px"></div>
+    <div class="sectors" id="sectors"></div>
+  </div>
+
+  <div>
+    <div class="section-title">Journal A*</div>
+    <div style="height:7px"></div>
+    <div class="logbox" id="logbox"></div>
+  </div>
+
+</div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-wrap" id="modal-wrap" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-title">📋 RAPPORT DE SIMULATION</div>
+    <div id="modal-content"></div>
+    <div class="modal-btns">
+      <button class="btn btn-green" onclick="exportReport()" style="flex:1">⬇ EXPORTER</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-wrap').classList.remove('show')" style="flex:1">FERMER</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ═══════════════════════════════════════════════════════════
+//  ALGORITHME A* (JavaScript)
+// ═══════════════════════════════════════════════════════════
+
+function astar(start, end, GRID, walls) {
+  // Heuristique : distance de Manhattan
+  const h = (a, b) => Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]);
+  const key = (p) => p[0]+','+p[1];
+
+  if (key(start) === key(end)) return [start];
+
+  // File de priorité simulée avec tableau trié
+  // Pour la performance, on utilise un min-heap simple
+  const open = [];
+  const gScore = {};
+  const parent = {};
+  const visited = new Set();
+
+  gScore[key(start)] = 0;
+  open.push({ f: h(start,end), g: 0, pos: start });
+
+  let explored = 0;
+
+  while (open.length > 0) {
+    // Extraire le nœud avec le f minimal
+    open.sort((a,b) => a.f - b.f);
+    const { g, pos } = open.shift();
+    const k = key(pos);
+
+    if (visited.has(k)) continue;
+    visited.add(k);
+    explored++;
+
+    // Destination atteinte
+    if (key(pos) === key(end)) {
+      // Reconstruire le chemin
+      const path = [];
+      let cur = key(end);
+      while (cur) {
+        const [x,y] = cur.split(',').map(Number);
+        path.unshift([x,y]);
+        cur = parent[cur];
+      }
+      return { path, explored };
+    }
+
+    // Explorer les 4 voisins
+    const [x,y] = pos;
+    const neighbors = [[x,y-1],[x,y+1],[x-1,y],[x+1,y]];
+
+    for (const nb of neighbors) {
+      const [nx,ny] = nb;
+      if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) continue;
+      if (walls.has(key(nb))) continue;
+      const nk = key(nb);
+      if (visited.has(nk)) continue;
+
+      const newG = g + 1;
+      if (gScore[nk] === undefined || newG < gScore[nk]) {
+        gScore[nk] = newG;
+        parent[nk] = k;
+        open.push({ f: newG + h(nb, end), g: newG, pos: nb });
+      }
+    }
+  }
+  return { path: [], explored };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ═══════════════════════════════════════════════════════════
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+let GRID, CELL;
+let pumpers, fires, walls, wallSet;
+let turn, totalExt, maxWater;
+let simRunning=false, simPaused=false;
+let autoInterval=null, speed=1;
+let statsHistory=[], simStartTime=null;
+let hoverX=null, hoverY=null;
+
+// Métriques A*
+let totalExplored=0, totalRecalc=0, totalDist=0, pathLengths=[];
+
+// ═══════════════════════════════════════════════════════════
+//  CLASSES
+// ═══════════════════════════════════════════════════════════
+
+class Pompier {
+  constructor(id,x,y,eauMax) {
+    this.id=id; this.x=x; this.y=y;
+    this.eau=eauMax; this.eauMax=eauMax;
+    this.eteints=0; this.dist=0;
+    this.path=[]; this.target=null;
+    this.trail=[];
+  }
+  distTo(f){ return Math.abs(f.x-this.x)+Math.abs(f.y-this.y); }
+  active(){ return this.eau>0; }
+
+  findBestTarget(feux, wallSet) {
+    let best=null, bestPath=[], bestLen=Infinity;
+    for (const f of feux) {
+      const res = astar([this.x,this.y],[f.x,f.y],GRID,wallSet);
+      if (res.path.length && res.path.length < bestLen) {
+        bestLen = res.path.length;
+        best = f; bestPath = res.path;
+        totalExplored += res.explored;
+      }
+    }
+    return { target:best, path:bestPath };
+  }
+
+  advance() {
+    if (this.path.length > 1) {
+      this.trail.push([this.x,this.y]);
+      if (this.trail.length>6) this.trail.shift();
+      [this.x,this.y] = this.path[1];
+      this.path = this.path.slice(1);
+      this.dist++; totalDist++;
+    }
+  }
+}
+
+class Feu {
+  constructor(x,y){ this.x=x; this.y=y; this.age=0; this.intensity=1; }
+  age_(){ this.age++; if(this.age>2) this.intensity=Math.min(3,this.intensity+0.5); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+
+function initSim() {
+  GRID  = +document.getElementById('c-g').value;
+  const nbP = +document.getElementById('c-p').value;
+  const nbF = +document.getElementById('c-f').value;
+  const eau = +document.getElementById('c-w').value;
+  const murPct = +document.getElementById('c-m').value / 100;
+  maxWater = eau * nbP;
+
+  const avail = Math.min(window.innerWidth-520, window.innerHeight-110);
+  CELL = Math.max(22, Math.min(44, Math.floor(avail/GRID)));
+  cv.width = cv.height = GRID*CELL;
+
+  pumpers=[]; fires=[]; walls=[]; wallSet=new Set();
+  turn=0; totalExt=0; statsHistory=[];
+  totalExplored=0; totalRecalc=0; totalDist=0; pathLengths=[];
+  simStartTime=new Date();
+
+  const used=new Set();
+  const free=()=>{
+    let x,y;
+    do{ x=Math.floor(Math.random()*GRID); y=Math.floor(Math.random()*GRID); }
+    while(used.has(x+','+y)||wallSet.has(x+','+y));
+    used.add(x+','+y); return[x,y];
+  };
+
+  // Générer les murs
+  const nbW = Math.floor(GRID*GRID*murPct);
+  for(let i=0;i<nbW;i++){
+    let x=Math.floor(Math.random()*GRID), y=Math.floor(Math.random()*GRID);
+    if(!used.has(x+','+y)){ wallSet.add(x+','+y); walls.push([x,y]); }
+  }
+
+  // Pompiers
+  for(let i=0;i<nbP;i++){
+    const[x,y]=free();
+    pumpers.push(new Pompier(i+1,x,y,eau));
+  }
+  // Feux
+  for(let i=0;i<nbF;i++){
+    const[x,y]=free();
+    fires.push(new Feu(x,y));
+  }
+
+  buildSectors();
+  updateStats();
+  render();
+  addLog('sys','Simulation A* initialisée — '+nbP+' pompier(s), '+nbF+' feux, '+walls.length+' murs');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UPDATE
+// ═══════════════════════════════════════════════════════════
+
+function updateSim() {
+  if (!simRunning||simPaused) return;
+  turn++;
+  const spread = +document.getElementById('c-s').value/100;
+
+  const extinguished = new Set();
+
+  // Effacer les anciens obstacles dynamiques (autres pompiers)
+  for (const p of pumpers) {
+    if (!p.active()) continue;
+    const feux_dispo = fires.filter(f=>!extinguished.has(f));
+    if (!feux_dispo.length) continue;
+
+    // Obstacles = murs + autres pompiers
+    const dynWalls = new Set(wallSet);
+    for (const op of pumpers) if(op!==p) dynWalls.add(op.x+','+op.y);
+
+    // Recalcul A* si nécessaire
+    const needRecalc = (
+      !p.path.length ||
+      !p.target ||
+      !feux_dispo.includes(p.target) ||
+      p.path.some(([px,py])=>dynWalls.has(px+','+py))
+    );
+
+    if (needRecalc) {
+      const {target,path} = p.findBestTarget(feux_dispo, dynWalls);
+      if (target) {
+        p.target=target; p.path=path;
+        totalRecalc++;
+        pathLengths.push(path.length);
+        addLog('path',`P${p.id} A* → (${target.x},${target.y}) [${path.length} cases]`);
+      } else {
+        addLog('warn',`P${p.id} aucun chemin accessible`);
+        continue;
+      }
+    }
+
+    // Adjacent ? → éteindre
+    if (p.target && p.distTo(p.target)<=1) {
+      extinguished.add(p.target);
+      p.eau--; p.eteints++; totalExt++;
+      addLog('ext',`P${p.id} éteint (${p.target.x},${p.target.y}) eau:${p.eau}`);
+      p.path=[]; p.target=null;
+    } else {
+      p.advance();
+      if (p.path.length<=1) addLog('path',`P${p.id} → (${p.x},${p.y})`);
+    }
+  }
+
+  fires = fires.filter(f=>!extinguished.has(f));
+
+  // Vieillir + propager
+  for (const f of fires) f.age_();
+
+  // Propagation aux voisins
+  const newFires=[];
+  for (const f of fires) {
+    if (f.intensity>=2 && Math.random()<spread*0.6) {
+      const nbs=[[f.x,f.y-1],[f.x,f.y+1],[f.x-1,f.y],[f.x+1,f.y]];
+      for(const[nx,ny] of nbs.sort(()=>Math.random()-.5)){
+        if(nx<0||nx>=GRID||ny<0||ny>=GRID) continue;
+        if(wallSet.has(nx+','+ny)) continue;
+        if(fires.some(ff=>ff.x===nx&&ff.y===ny)||newFires.some(ff=>ff.x===nx&&ff.y===ny)) continue;
+        if(pumpers.some(pp=>pp.x===nx&&pp.y===ny)) continue;
+        newFires.push(new Feu(nx,ny));
+        addLog('fire',`🔥 Propagation → (${nx},${ny})`);
+        showAlert('🔥 PROPAGATION DÉTECTÉE');
+        break;
+      }
+    }
+  }
+  fires.push(...newFires);
+
+  // Feu spontané
+  if (fires.length<GRID*GRID*.35 && Math.random()<spread*.35) {
+    const occ=new Set([
+      ...fires.map(f=>f.x+','+f.y),
+      ...pumpers.map(p=>p.x+','+p.y),
+      ...wallSet
+    ]);
+    for(let i=0;i<20;i++){
+      const x=Math.floor(Math.random()*GRID), y=Math.floor(Math.random()*GRID);
+      if(!occ.has(x+','+y)){
+        fires.push(new Feu(x,y));
+        addLog('fire',`🔥 Nouveau foyer (${x},${y})`);
+        showAlert('🔥 NOUVEAU FOYER !');
+        break;
+      }
+    }
+  }
+
+  statsHistory.push({turn,fires:fires.length,ext:totalExt,water:pumpers.reduce((a,p)=>a+p.eau,0)});
+  updateStats();
+  updateSectors();
+  render();
+
+  const wLeft = pumpers.reduce((a,p)=>a+p.eau,0);
+  if (!fires.length) endSim('VICTOIRE',`Tous les foyers éteints en ${turn} tours !`,'var(--green)');
+  else if (!wLeft) endSim('DÉFAITE',`Eau épuisée — ${fires.length} foyer(s) restant(s)`,'var(--fire)');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER CANVAS
+// ═══════════════════════════════════════════════════════════
+
+function render() {
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  // Fond damier
+  for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){
+    ctx.fillStyle=(x+y)%2===0?'#0d0f14':'#101318';
+    ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+  }
+
+  // Grille
+  ctx.strokeStyle='#1e2230'; ctx.lineWidth=.5;
+  for(let i=0;i<=GRID;i++){
+    ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,GRID*CELL);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(GRID*CELL,i*CELL);ctx.stroke();
+  }
+
+  // Murs
+  for(const[x,y] of walls){
+    ctx.fillStyle='#2e3550';
+    ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+    ctx.fillStyle='#3d4870';
+    ctx.font=`bold ${Math.floor(CELL*.65)}px monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('▪',x*CELL+CELL/2,y*CELL+CELL/2);
+  }
+
+  // Chemins A* (toutes les cases du path de chaque pompier)
+  for(const p of pumpers){
+    if(p.path.length<=1) continue;
+    for(let i=1;i<p.path.length;i++){
+      const[px,py]=p.path[i];
+      const alpha=0.06+0.12*(i/p.path.length);
+      ctx.fillStyle=`rgba(61,139,255,${alpha})`;
+      ctx.fillRect(px*CELL+1,py*CELL+1,CELL-2,CELL-2);
+      if(i>0&&i<p.path.length-1){
+        ctx.fillStyle=`rgba(122,180,255,${alpha*1.5})`;
+        ctx.font=`${CELL*.3}px monospace`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('·',px*CELL+CELL/2,py*CELL+CELL/2);
+      }
+    }
+    // Destination marquée
+    if(p.target){
+      const tx=p.target.x*CELL, ty=p.target.y*CELL;
+      ctx.strokeStyle='rgba(61,139,255,0.5)'; ctx.lineWidth=1.5;
+      ctx.setLineDash([3,3]);
+      ctx.strokeRect(tx+1,ty+1,CELL-2,CELL-2);
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Traînées pompiers
+  for(const p of pumpers){
+    for(let i=0;i<p.trail.length;i++){
+      const[tx,ty]=p.trail[i];
+      ctx.fillStyle=`rgba(61,139,255,${(i+1)/p.trail.length*.12})`;
+      ctx.fillRect(tx*CELL+2,ty*CELL+2,CELL-4,CELL-4);
+    }
+  }
+
+  // Feux
+  for(const f of fires){
+    const cx=f.x*CELL+CELL/2, cy=f.y*CELL+CELL/2;
+    // Halo
+    const g=ctx.createRadialGradient(cx,cy,1,cx,cy,CELL*.75);
+    g.addColorStop(0,f.intensity>=2?'rgba(255,80,0,.45)':'rgba(255,80,0,.22)');
+    g.addColorStop(1,'rgba(255,50,0,0)');
+    ctx.fillStyle=g;
+    ctx.fillRect(f.x*CELL,f.y*CELL,CELL,CELL);
+    // Emoji
+    const sz=CELL*(f.intensity>=2?.62:.52);
+    ctx.font=`${sz}px serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.intensity>=2?'💥':'🔥',cx,cy);
+    if(f.intensity>=2){
+      ctx.fillStyle='#ff4520'; ctx.font=`bold 9px monospace`;
+      ctx.fillText('×'+Math.floor(f.intensity),f.x*CELL+CELL-7,f.y*CELL+11);
+    }
+  }
+
+  // Pompiers
+  for(const p of pumpers){
+    const cx=p.x*CELL+CELL/2, cy=p.y*CELL+CELL/2;
+    const g=ctx.createRadialGradient(cx,cy,1,cx,cy,CELL*.6);
+    g.addColorStop(0,'rgba(61,139,255,.3)'); g.addColorStop(1,'rgba(61,139,255,0)');
+    ctx.fillStyle=g;
+    ctx.fillRect(p.x*CELL,p.y*CELL,CELL,CELL);
+    ctx.font=`${CELL*.5}px serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(p.active()?'🚒':'🚫',cx,cy);
+    ctx.fillStyle='#3d8bff'; ctx.font=`bold 9px monospace`;
+    ctx.textAlign='right';
+    ctx.fillText('P'+p.id,p.x*CELL+CELL-3,p.y*CELL+12);
+    // Barre eau
+    const bw=CELL-6, pct=p.eau/p.eauMax;
+    ctx.fillStyle='#1a2030';
+    ctx.fillRect(p.x*CELL+3,p.y*CELL+CELL-5,bw,3);
+    ctx.fillStyle=pct>.5?'#3d8bff':pct>.2?'#ffb800':'#ff4520';
+    ctx.fillRect(p.x*CELL+3,p.y*CELL+CELL-5,bw*pct,3);
+  }
+
+  // Hover crosshair
+  if(hoverX!==null){
+    ctx.strokeStyle='rgba(61,139,255,.15)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    ctx.beginPath();ctx.moveTo(hoverX*CELL,0);ctx.lineTo(hoverX*CELL,GRID*CELL);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,hoverY*CELL);ctx.lineTo(GRID*CELL,hoverY*CELL);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STATS
+// ═══════════════════════════════════════════════════════════
+
+function updateStats(){
+  const wLeft=pumpers.reduce((a,p)=>a+p.eau,0);
+  const pct=maxWater>0?Math.min(100,Math.round(totalExt/(totalExt+fires.length+.001)*100)):0;
+  const avgPath=pathLengths.length?Math.round(pathLengths.reduce((a,b)=>a+b,0)/pathLengths.length):0;
+
+  document.getElementById('s-fires').textContent=fires.length;
+  document.getElementById('s-ext').textContent=totalExt;
+  document.getElementById('s-pumps').textContent=pumpers.length;
+  document.getElementById('s-tour').textContent=turn;
+  document.getElementById('s-water').textContent=wLeft;
+  document.getElementById('tour-lbl').textContent='TOUR '+turn+' / ∞';
+
+  const wp=maxWater>0?wLeft/maxWater*100:0;
+  const pb=document.getElementById('pb-water');
+  pb.style.width=wp+'%';
+  pb.style.background=wp>50?'var(--path)':wp>20?'var(--yellow)':'var(--fire)';
+  document.getElementById('pb-pct').textContent=pct+'%';
+  document.getElementById('pb-ext').style.width=pct+'%';
+
+  document.getElementById('a-explored').textContent=totalExplored;
+  document.getElementById('a-pathlen').textContent=avgPath+' cases';
+  document.getElementById('a-recalc').textContent=totalRecalc;
+  document.getElementById('a-dist').textContent=totalDist+' cases';
+  document.getElementById('a-walls').textContent=walls.length;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SECTEURS
+// ═══════════════════════════════════════════════════════════
+
+function buildSectors(){
+  const sg=document.getElementById('sectors');
+  sg.innerHTML='';
+  for(let i=0;i<9;i++){
+    const d=document.createElement('div');
+    d.className='sec'; d.id='sec-'+i;
+    d.innerHTML=`<span>·</span><span class="sec-lbl">S${i+1}</span>`;
+    sg.appendChild(d);
+  }
+}
+function updateSectors(){
+  const sz=Math.ceil(GRID/3);
+  for(let si=0;si<9;si++){
+    const sx=(si%3)*sz,sy=Math.floor(si/3)*sz;
+    let fc=0,pc=0;
+    for(const f of fires) if(f.x>=sx&&f.x<sx+sz&&f.y>=sy&&f.y<sy+sz) fc++;
+    for(const p of pumpers) if(p.x>=sx&&p.x<sx+sz&&p.y>=sy&&p.y<sy+sz) pc++;
+    const el=document.getElementById('sec-'+si);
+    el.className='sec'+(fc?' fire':pc?' pump':'');
+    el.innerHTML=`<span>${fc?'🔥':pc?'🚒':'·'}</span><span class="sec-lbl">S${si+1} F:${fc}</span>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOG
+// ═══════════════════════════════════════════════════════════
+
+function addLog(type,msg){
+  const lb=document.getElementById('logbox');
+  const d=document.createElement('div');
+  d.className='log '+type;
+  const t=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.textContent='['+t+'] '+msg;
+  lb.insertBefore(d,lb.firstChild);
+  while(lb.children.length>50) lb.removeChild(lb.lastChild);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CONTRÔLES
+// ═══════════════════════════════════════════════════════════
+
+function startSim(){
+  document.getElementById('result').classList.remove('show');
+  initSim(); simRunning=true; simPaused=false;
+  document.getElementById('b-start').disabled=true;
+  document.getElementById('b-pause').disabled=false;
+  clearInterval(autoInterval);
+  autoInterval=setInterval(updateSim,Math.round(600/speed));
+  addLog('sys','▶ Simulation A* démarrée');
+}
+
+function togglePause(){
+  simPaused=!simPaused;
+  document.getElementById('b-pause').textContent=simPaused?'▶ REPRENDRE':'⏸ PAUSE';
+  addLog('sys',simPaused?'⏸ Pause':'▶ Reprise');
+}
+
+function resetSim(){
+  clearInterval(autoInterval); simRunning=false; simPaused=false;
+  document.getElementById('b-start').disabled=false;
+  document.getElementById('b-pause').disabled=true;
+  document.getElementById('b-pause').textContent='⏸ PAUSE';
+  document.getElementById('result').classList.remove('show');
+  initSim();
+}
+
+function setSpeed(s,el){
+  speed=s;
+  document.querySelectorAll('.spd').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  if(simRunning){ clearInterval(autoInterval); autoInterval=setInterval(updateSim,Math.round(600/speed)); }
+}
+
+function loadPreset(name){
+  const P={
+    urban:      {p:3,f:6, w:10,g:12,m:18,s:15},
+    forest:     {p:2,f:10,w:8, g:16,m:7, s:38},
+    industrial: {p:4,f:4, w:16,g:11,m:25,s:12},
+    crisis:     {p:1,f:14,w:6, g:14,m:9, s:42},
+  };
+  const v=P[name];
+  document.getElementById('c-p').value=v.p; document.getElementById('l-p').textContent=v.p;
+  document.getElementById('c-f').value=v.f; document.getElementById('l-f').textContent=v.f;
+  document.getElementById('c-w').value=v.w; document.getElementById('l-w').textContent=v.w;
+  document.getElementById('c-g').value=v.g; document.getElementById('l-g').textContent=v.g+'×'+v.g;
+  document.getElementById('c-m').value=v.m; document.getElementById('l-m').textContent=v.m+'%';
+  document.getElementById('c-s').value=v.s; document.getElementById('l-s').textContent=v.s+'%';
+  resetSim();
+  addLog('sys','Scénario "'+name+'" chargé');
+}
+
+function endSim(title,sub,color){
+  clearInterval(autoInterval); simRunning=false;
+  document.getElementById('result-title').textContent=title;
+  document.getElementById('result-title').style.color=color;
+  document.getElementById('result-sub').textContent=sub;
+  document.getElementById('result').classList.add('show');
+  document.getElementById('b-pause').disabled=true;
+  addLog('sys','━━ '+title+' ━━ '+sub);
+}
+
+function showAlert(msg){
+  const a=document.getElementById('alert');
+  a.textContent=msg; a.classList.add('show');
+  setTimeout(()=>a.classList.remove('show'),2200);
+}
+
+// ── RAPPORT ──
+function showReport(){
+  const dur=simStartTime?Math.round((new Date()-simStartTime)/1000):0;
+  const wl=pumpers.reduce((a,p)=>a+p.eau,0);
+  const eff=totalExt>0?Math.round(totalExt/(totalExt+fires.length)*100):0;
+  const avgP=pathLengths.length?Math.round(pathLengths.reduce((a,b)=>a+b,0)/pathLengths.length):0;
+  document.getElementById('modal-content').innerHTML=`
+    <div class="rep-row"><span>Tours effectués</span><span class="rep-val">${turn}</span></div>
+    <div class="rep-row"><span>Feux éteints</span><span class="rep-val" style="color:var(--green)">${totalExt}</span></div>
+    <div class="rep-row"><span>Foyers restants</span><span class="rep-val" style="color:var(--fire)">${fires.length}</span></div>
+    <div class="rep-row"><span>Efficacité</span><span class="rep-val">${eff}%</span></div>
+    <div class="rep-row"><span>Eau restante</span><span class="rep-val">${wl} / ${maxWater}</span></div>
+    <div class="rep-row"><span>Murs / obstacles</span><span class="rep-val">${walls.length}</span></div>
+    <div class="rep-row"><span>Cases A* explorées</span><span class="rep-val">${totalExplored}</span></div>
+    <div class="rep-row"><span>Recalculs de chemin</span><span class="rep-val">${totalRecalc}</span></div>
+    <div class="rep-row"><span>Distance totale</span><span class="rep-val">${totalDist} cases</span></div>
+    <div class="rep-row"><span>Longueur chemin moy.</span><span class="rep-val">${avgP} cases</span></div>
+    <div class="rep-row"><span>Durée simulation</span><span class="rep-val">${dur}s</span></div>
+    ${pumpers.map(p=>`<div class="rep-row"><span>Pompier P${p.id}</span><span class="rep-val">${p.eteints} ext. | ${p.dist} cases</span></div>`).join('')}
+  `;
+  document.getElementById('modal-wrap').classList.add('show');
+}
+
+function exportReport(){
+  const rows=document.querySelectorAll('.rep-row');
+  let txt='RAPPORT FIRESIM PRO v2 (A*)\n'+'='.repeat(45)+'\n';
+  rows.forEach(r=>{
+    const s=r.querySelectorAll('span');
+    txt+=s[0].textContent.padEnd(30)+s[1].textContent+'\n';
+  });
+  txt+='\nHistorique:\n';
+  statsHistory.slice(-15).forEach(s=>txt+=`  Tour ${s.turn}: feux=${s.fires} ext=${s.ext} eau=${s.water}\n`);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));
+  a.download=`firesim_v2_rapport_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+}
+
+function closeModal(e){ if(e.target.id==='modal-wrap') document.getElementById('modal-wrap').classList.remove('show'); }
+
+// ── HOVER ──
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  hoverX=Math.floor((e.clientX-r.left)/CELL);
+  hoverY=Math.floor((e.clientY-r.top)/CELL);
+  document.getElementById('coord-lbl').textContent=`X:${hoverX} Y:${hoverY}`;
+  if(!simRunning) render();
+});
+cv.addEventListener('mouseleave',()=>{ hoverX=null; if(!simRunning) render(); });
+
+// ── CLOCK ──
+setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleTimeString('fr-FR'),1000);
+
+// ── BOOT ──
+initSim();
+addLog('sys','FireSim Pro v2 — A* pathfinding actif');
+</script>
+</body>
+</html>
