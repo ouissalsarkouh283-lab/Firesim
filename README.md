@@ -86,7 +86,7 @@ Environnement
 
 ## 👤 Auteur
  
-**[Ton nom]**  
+**[ouissal sarkouh]**  
 Étudiant en ingénierie des données et systèmes decisionels
 🔗 [(https://github.com/ouissalsarkouh283-lab)]
  
